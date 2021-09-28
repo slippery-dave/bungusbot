@@ -200,8 +200,10 @@ async def move(ctx, src, dst):
         return
     src = int(src)
     dst = int(dst)
-    if src < 0 or src >= len(song_queue) or dst < 0 or dst >= len(song_queue) or src == dst:
+    if src < 1 or src > len(song_queue) or dst < 1 or dst > len(song_queue) or src == dst:
         await ctx.send(f"You suck at math, check your numbers")
+    song_queue.insert(dst-1, song_queue.pop(src-1))
+    await ctx.send(f":white_check_mark: **Moved** `{song_queue[dst-1]['title']}` **to position {dst}**")
 
 
 @client.command()
