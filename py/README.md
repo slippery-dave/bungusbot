@@ -1,7 +1,3 @@
-# bungusbot
-
-BungusBot is a really basic clone of the Rythmbot discord music player.
-
 ## Installation
 
 Just install requirements
@@ -10,7 +6,7 @@ Just install requirements
 pip install requirements.txt
 ```
 
-Then set up a .env fil
+Then set up a .env file
 
 ```text
 DISCORD_TOKEN=<token>
