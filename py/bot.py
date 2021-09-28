@@ -21,11 +21,12 @@ client = commands.Bot(command_prefix='!')
 players = {}
 
 # music queue. just using a list so people can move songs if they want
-queue = []
+song_queue = []
 
 # keep track of time left in song
 TIME_STARTED = 0
 CUR_SONG_DUR = 0
+CUR_SONG_STR = ""
 
 # streaming stuff
 YDL_OPTIONS = {'format': 'bestaudio', 'noplaylist':'True'}
@@ -62,6 +63,7 @@ async def leave(ctx):
 async def play(ctx, *, search):
     global CUR_SONG_DUR
     global TIME_STARTED
+    global CUR_SONG_STR
     guild = ctx.message.guild
     voice_client = guild.voice_client
     if not voice_client:
@@ -102,7 +104,14 @@ async def play(ctx, *, search):
     URL = info['formats'][0]['url']
     video_title = info['title']
     if voice_client.is_playing():
-        queue.append((URL, song_duration))
+        song_dict = {
+            "URL": URL,
+            "duration_str": song_duration_str,
+            "duration": song_duration,
+            "title": video_title,
+            "requestor": f"{ctx.author.display_name}",
+        }
+        song_queue.append(song_dict)
         #await ctx.send(f'Added [{video_title}](https://www.youtube.com/watch?v={video_link})')
         embed = discord.Embed(
             title=video_title,
@@ -119,8 +128,7 @@ async def play(ctx, *, search):
             inline=True
             )
         time_left = CUR_SONG_DUR - int(time.time() - TIME_STARTED)
-        time_until_play = sum(dur for url, dur in queue) + time_left
-        # hours
+        time_until_play = sum(song["duration"] for song in song_queue) + time_left
         minutes, seconds = divmod(time_until_play, 60)
         hours, minutes = divmod(minutes, 60)
         if hours != 0:
@@ -135,7 +143,7 @@ async def play(ctx, *, search):
             )
         embed.add_field(
             name="Place in queue",
-            value=len(queue),
+            value=len(song_queue),
             inline=False
             )
         await ctx.send(embed=embed)
@@ -146,29 +154,106 @@ async def play(ctx, *, search):
         voice_client.play(FFmpegPCMAudio(URL, **FFMPEG_OPTIONS), after=lambda e: play_next(ctx))
         CUR_SONG_DUR = song_duration
         TIME_STARTED = time.time()
+        CUR_SONG_STR = f"[{video_title}](https://www.youtube.com/watch?v={video_link}) | `{song_duration_str} Requested by: {ctx.author.display_name}`"
 
 def play_next(ctx):
     global CUR_SONG_DUR
     global TIME_STARTED
-    if len(queue) >= 1:
-        URL, dur = queue.pop(0)
+    global CUR_SONG_STR
+    if len(song_queue) >= 1:
+        song = song_queue.pop(0)
+        URL = song["URL"]
+        dur = song["duration"]
         guild = ctx.message.guild
         voice_client = guild.voice_client
         CUR_SONG_DUR = dur
         TIME_STARTED = time.time()
+        CUR_SONG_STR = f"[{song['title']}]({song['URL']}) | {song['duration_str']} Requested by: {song['requestor']}"
         voice_client.play(FFmpegPCMAudio(URL, **FFMPEG_OPTIONS), after=lambda e: play_next(ctx))
 
 
 @client.command()
-async def stop(ctx):
+async def skip(ctx):
     guild = ctx.message.guild
     voice_client = guild.voice_client
     if not voice_client:
-        joined = await join(ctx)
-        if not joined:
-            return
-        voice_client = guild.voice_client
+        return
+        # joined = await join(ctx)
+        # if not joined:
+        #     return
+        # voice_client = guild.voice_client
     voice_client.stop()
+
+@client.command()
+async def fs(ctx):
+    guild = ctx.message.guild
+    voice_client = guild.voice_client
+    if not voice_client:
+        return
+    voice_client.skip()
+
+@client.command()
+async def move(ctx, src, dst):
+    guild = ctx.message.guild
+    voice_client = guild.voice_client
+    if not voice_client:
+        return
+    src = int(src)
+    dst = int(dst)
+    if src < 0 or src >= len(song_queue) or dst < 0 or dst >= len(song_queue) or src == dst:
+        await ctx.send(f"You suck at math, check your numbers")
+
+
+@client.command()
+async def queue(ctx):
+    guild = ctx.message.guild
+    voice_client = guild.voice_client
+    if not voice_client:
+        print("EXITING")
+        return
+
+    embed = discord.Embed(
+        name="\u200b",
+        title=f"Queue for {guild}"
+    )
+    embed.add_field(
+        name="__Now Playing:__",
+        value=CUR_SONG_STR,
+        inline=False
+    )
+
+    if not song_queue:
+        await ctx.send(f"The queue is barren.")
+        return
+
+    # song = song_queue[0]
+    # embed.add_field(
+    #     name="__Up Next:__",
+    #     value=f"[{song['title']}]({song['URL']}) | {song['duration_str']} Requested by: {song['requestor']}",
+    #     inline=False
+    # )
+    for i, song in enumerate(song_queue, 1):
+        embed.add_field(
+        name="__Up Next:__" if i == 1 else "\u200b",
+        value=f"`{i}) `[{song['title']}]({song['URL']}) | `{song['duration_str']} Requested by: {song['requestor']}`",
+        inline=False
+    )
+    total_time = CUR_SONG_DUR - int(time.time() - TIME_STARTED)
+    total_time += sum(song["duration"] for song in song_queue)
+    minutes, seconds = divmod(total_time, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours != 0:
+        total_time = f"{hours}:{minutes:02d}:{seconds:02d}"
+    # just minutes
+    else:
+        total_time = f"{minutes}:{seconds:02d}"
+    embed.add_field(
+        name="\u200b",
+        value=f"**{len(song_queue)} songs in queue | {total_time} total length**"
+        )
+    await ctx.send(embed=embed)
+
+
 
 # @client.event
 # async def on_message(message):
