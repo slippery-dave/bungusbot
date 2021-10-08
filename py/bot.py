@@ -30,7 +30,7 @@ CUR_SONG_STR = ""
 
 # streaming stuff
 YDL_OPTIONS = {'format': 'bestaudio', 'noplaylist':'True'}
-FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
+FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_on_network_error 1 -reconnect_on_http_error 404,403 -reconnect_delay_max 5', 'options': '-vn'}
 
 @client.event
 async def on_ready():
@@ -152,6 +152,7 @@ async def play(ctx, *, search):
         #await ctx.send(f'Playing [{video_title}](https://www.youtube.com/watch?v={video_link})')
         await ctx.send(f'**Playing** `{video_title}` now!')
         voice_client.play(FFmpegPCMAudio(URL, **FFMPEG_OPTIONS), after=lambda e: play_next(ctx))
+        voice_client.source = discord.PCMVolumeTransformer(voice_client.source, volume=0.25)
         CUR_SONG_DUR = song_duration
         TIME_STARTED = time.time()
         CUR_SONG_STR = f"[{video_title}](https://www.youtube.com/watch?v={video_link}) | `{song_duration_str} Requested by: {ctx.author.display_name}`"
@@ -255,6 +256,12 @@ async def queue(ctx):
         )
     await ctx.send(embed=embed)
 
+
+@client.command()
+async def say(ctx, *, words):
+    guild = ctx.message.guild
+    channel = ctx.channel
+    await channel.send(words, tts=True)
 
 
 # @client.event
