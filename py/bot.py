@@ -9,6 +9,7 @@ from discord.ext import commands
 from discord import FFmpegPCMAudio
 from dotenv import load_dotenv
 from youtube_dl import YoutubeDL
+from youtube_dl.utils import DownloadError
 import requests
 
 load_dotenv()
@@ -16,9 +17,6 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 SERVER = os.getenv('DISCORD_GUILD')
 
 client = commands.Bot(command_prefix='!')
-
-# keep track of any active music players
-players = {}
 
 # music queue. just using a list so people can move songs if they want
 song_queue = []
@@ -29,15 +27,15 @@ CUR_SONG_DUR = 0
 CUR_SONG_STR = ""
 
 # streaming stuff
-YDL_OPTIONS = {'format': 'bestaudio', 'noplaylist':'True'}
+YDL_OPTIONS = {'format': 'bestaudio', 'noplaylist':'True', 'cookiefile':'./youtube.com_cookies.txt'}
 FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_on_network_error 1 -reconnect_on_http_error 404,403 -reconnect_delay_max 5', 'options': '-vn'}
 
+# When bot is up and connected to server(guild)
 @client.event
 async def on_ready():
     for guild in client.guilds:
         if guild.name == SERVER:
             break
-
     print(
         f'{client.user} up in this bisshhh.\n'
         f'\tserver: "{guild.name}" (id: {guild.id})'
@@ -54,8 +52,9 @@ async def join(ctx):
 
 @client.command()
 async def leave(ctx):
-    guild = ctx.message.guild
-    voice_client = guild.voice_client
+    voice_client = ctx.message.guild.voice_client
+    if not voice_client:
+        return
     await voice_client.disconnect()
 
 @client.command()
@@ -64,17 +63,15 @@ async def play(ctx, *, search):
     global CUR_SONG_DUR
     global TIME_STARTED
     global CUR_SONG_STR
-    guild = ctx.message.guild
-    voice_client = guild.voice_client
+    voice_client = ctx.message.guild.voice_client
     if not voice_client:
         joined = await join(ctx)
         if not joined:
             return
-        voice_client = guild.voice_client
+        voice_client = ctx.message.guild.voice_client
 
     await ctx.send(f':musical_note: **Searching** :mag_right:`{search}`')
 
-    # if search.startswith('http') or search.startwith('www')
     search = search.replace(' ', '+')
     response = requests.get('https://www.youtube.com/results?search_query=' + search)
     video_ids = re.findall(r'watch\?v=(\S{11})', response.text)
@@ -96,7 +93,15 @@ async def play(ctx, *, search):
     # voice_client.is_playing()
 
     with YoutubeDL(YDL_OPTIONS) as ydl:
-        info = ydl.extract_info(video_link, download=False)
+        try:
+            info = ydl.extract_info(video_link, download=False)
+        except DownloadError as e:
+            if "confirm your age" in str(e):
+                await ctx.send("UwU This song is too nyaughty fow me t-to h-handwe. Sowwy!!")
+            else:
+                await ctx.send("I absolutely bungled the download. Tell slippery dave.")
+                print(f"Download error: {type(e)}")
+            return
     song_duration = int(info['duration'])
     song_duration_str = f"{song_duration // 60}:{song_duration % 60:02d}"
     thumbnail_url = info['thumbnails'][0]['url']
@@ -112,7 +117,6 @@ async def play(ctx, *, search):
             "requestor": f"{ctx.author.display_name}",
         }
         song_queue.append(song_dict)
-        #await ctx.send(f'Added [{video_title}](https://www.youtube.com/watch?v={video_link})')
         embed = discord.Embed(
             title=video_title,
             url=f"https://www.youtube.com/watch?v={video_link}",
@@ -165,38 +169,29 @@ def play_next(ctx):
         song = song_queue.pop(0)
         URL = song["URL"]
         dur = song["duration"]
-        guild = ctx.message.guild
-        voice_client = guild.voice_client
+        voice_client = ctx.message.guild.voice_client
         CUR_SONG_DUR = dur
         TIME_STARTED = time.time()
         CUR_SONG_STR = f"[{song['title']}]({song['URL']}) | {song['duration_str']} Requested by: {song['requestor']}"
         voice_client.play(FFmpegPCMAudio(URL, **FFMPEG_OPTIONS), after=lambda e: play_next(ctx))
 
-
 @client.command()
 async def skip(ctx):
-    guild = ctx.message.guild
-    voice_client = guild.voice_client
+    voice_client = ctx.message.guild.voice_client
     if not voice_client:
         return
-        # joined = await join(ctx)
-        # if not joined:
-        #     return
-        # voice_client = guild.voice_client
     voice_client.stop()
 
 @client.command()
 async def fs(ctx):
-    guild = ctx.message.guild
-    voice_client = guild.voice_client
+    voice_client = ctx.message.guild.voice_client
     if not voice_client:
         return
     voice_client.skip()
 
 @client.command()
 async def move(ctx, src, dst):
-    guild = ctx.message.guild
-    voice_client = guild.voice_client
+    voice_client = ctx.message.guild.voice_client
     if not voice_client:
         return
     src = int(src)
@@ -229,18 +224,14 @@ async def queue(ctx):
         await ctx.send(f"The queue is barren.")
         return
 
-    # song = song_queue[0]
-    # embed.add_field(
-    #     name="__Up Next:__",
-    #     value=f"[{song['title']}]({song['URL']}) | {song['duration_str']} Requested by: {song['requestor']}",
-    #     inline=False
-    # )
+    # Next playing doesn't include current, start at 1
     for i, song in enumerate(song_queue, 1):
         embed.add_field(
-        name="__Up Next:__" if i == 1 else "\u200b",
-        value=f"`{i}) `[{song['title']}]({song['URL']}) | `{song['duration_str']} Requested by: {song['requestor']}`",
-        inline=False
-    )
+            name="__Up Next:__" if i == 1 else "\u200b",
+            value=f"`{i}) `[{song['title']}]({song['URL']}) | `{song['duration_str']} Requested by: {song['requestor']}`",
+            inline=False
+        )
+    # TODO: clean this up, this is messy
     total_time = CUR_SONG_DUR - int(time.time() - TIME_STARTED)
     total_time += sum(song["duration"] for song in song_queue)
     minutes, seconds = divmod(total_time, 60)
@@ -259,20 +250,8 @@ async def queue(ctx):
 
 @client.command()
 async def say(ctx, *, words):
-    guild = ctx.message.guild
     channel = ctx.channel
-    await channel.send(words, tts=True)
+    print(str(channel))
+    await ctx.send(words, tts=True)
 
-
-# @client.event
-# async def on_message(message):
-#   if message.author == client.user:
-#       return
-
-#   if message.content.startswith('!'):
-#       await message.channel.send(f'Someone said {message.content}')
-
-
-
-# client = BungusClient()
 client.run(TOKEN)
