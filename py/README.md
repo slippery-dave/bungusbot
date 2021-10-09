@@ -8,6 +8,15 @@ pip install requirements.txt
 
 Then set up a .env file
 
+Also need to install ffmpeg. To see their official page, check (here)[https://ffmpeg.org/].
+
+On ubuntu (20.04 at least) it's as easy as:
+
+```
+sudo apt install ffmpeg
+
+```
+
 ```text
 DISCORD_TOKEN=<token>
 DISCORD_GUILD=<whatever server/guild>

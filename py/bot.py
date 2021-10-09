@@ -30,6 +30,9 @@ CUR_SONG_STR = ""
 YDL_OPTIONS = {'format': 'bestaudio', 'noplaylist':'True', 'cookiefile':'./youtube.com_cookies.txt'}
 FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_on_network_error 1 -reconnect_on_http_error 404,403 -reconnect_delay_max 5', 'options': '-vn'}
 
+# Since everyone always complains that the volume is too high when joining
+VOLUME_REDUCER = 0.25
+
 # When bot is up and connected to server(guild)
 @client.event
 async def on_ready():
@@ -156,7 +159,7 @@ async def play(ctx, *, search):
         #await ctx.send(f'Playing [{video_title}](https://www.youtube.com/watch?v={video_link})')
         await ctx.send(f'**Playing** `{video_title}` now!')
         voice_client.play(FFmpegPCMAudio(URL, **FFMPEG_OPTIONS), after=lambda e: play_next(ctx))
-        voice_client.source = discord.PCMVolumeTransformer(voice_client.source, volume=0.25)
+        voice_client.source = discord.PCMVolumeTransformer(voice_client.source, volume=VOLUME_REDUCER)
         CUR_SONG_DUR = song_duration
         TIME_STARTED = time.time()
         CUR_SONG_STR = f"[{video_title}](https://www.youtube.com/watch?v={video_link}) | `{song_duration_str} Requested by: {ctx.author.display_name}`"
@@ -174,6 +177,7 @@ def play_next(ctx):
         TIME_STARTED = time.time()
         CUR_SONG_STR = f"[{song['title']}]({song['URL']}) | {song['duration_str']} Requested by: {song['requestor']}"
         voice_client.play(FFmpegPCMAudio(URL, **FFMPEG_OPTIONS), after=lambda e: play_next(ctx))
+        voice_client.source = discord.PCMVolumeTransformer(voice_client.source, volume=VOLUME_REDUCER)
 
 @client.command()
 async def skip(ctx):
