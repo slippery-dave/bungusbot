@@ -179,19 +179,12 @@ def play_next(ctx):
         voice_client.play(FFmpegPCMAudio(URL, **FFMPEG_OPTIONS), after=lambda e: play_next(ctx))
         voice_client.source = discord.PCMVolumeTransformer(voice_client.source, volume=VOLUME_REDUCER)
 
-@client.command()
+@client.command(aliases=['fs'])
 async def skip(ctx):
     voice_client = ctx.message.guild.voice_client
     if not voice_client:
         return
     voice_client.stop()
-
-@client.command()
-async def fs(ctx):
-    voice_client = ctx.message.guild.voice_client
-    if not voice_client:
-        return
-    voice_client.skip()
 
 @client.command()
 async def move(ctx, src, dst):
