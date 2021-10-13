@@ -30,8 +30,13 @@ CUR_SONG_STR = ""
 YDL_OPTIONS = {'format': 'bestaudio', 'noplaylist':'True', 'cookiefile':'./youtube.com_cookies.txt'}
 FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_on_network_error 1 -reconnect_on_http_error 404,403 -reconnect_delay_max 5', 'options': '-vn'}
 
-# Since everyone always complains that the volume is too high when joining
+# Since everyone always complains that the volume is too high when joining,
+# I'm just reducing it to a flat percentage of itself
 VOLUME_REDUCER = 0.25
+
+# Save our eardrums. And sanity. 
+EAR_PROTECT = False
+EAR_KEYWORDS = ['ear', 'rape', 'earrape', 'earape', 'earr', 'rrape']
 
 # When bot is up and connected to server(guild)
 @client.event
@@ -76,6 +81,8 @@ async def play(ctx, *, search):
     await ctx.send(f':musical_note: **Searching** :mag_right:`{search}`')
 
     search = search.replace(' ', '+')
+    if EAR_PROTECT == True:
+        search = ear_sanitize(search)
     response = requests.get('https://www.youtube.com/results?search_query=' + search)
     video_ids = re.findall(r'watch\?v=(\S{11})', response.text)
     video_link = video_ids[0]
@@ -179,6 +186,12 @@ def play_next(ctx):
         voice_client.play(FFmpegPCMAudio(URL, **FFMPEG_OPTIONS), after=lambda e: play_next(ctx))
         voice_client.source = discord.PCMVolumeTransformer(voice_client.source, volume=VOLUME_REDUCER)
 
+def ear_sanitize(search):
+    new_search = ""
+    for kw in EAR_KEYWORDS:
+        new_search = return_str.replace(kw, '')
+    return new_search
+
 @client.command(aliases=['fs'])
 async def skip(ctx):
     voice_client = ctx.message.guild.voice_client
@@ -198,6 +211,26 @@ async def move(ctx, src, dst):
     song_queue.insert(dst-1, song_queue.pop(src-1))
     await ctx.send(f":white_check_mark: **Moved** `{song_queue[dst-1]['title']}` **to position {dst}**")
 
+@client.command()
+async def remove(ctx, target):
+    voice_client = ctx.message.guild.voice_client
+    if not voice_client:
+        return
+    target = int(target)
+    if target <= 0 or target > len(song_queue):
+        await ctx.send(f"You're bad at math, try again")
+    song_queue.pop(target-1)
+
+@client.command()
+async def pause(ctx):
+    voice_client = ctx.message.guild.voice_client
+    voice_client.pause()
+
+
+@client.command()
+async def resume(ctx):
+    voice_client = ctx.message.guild.voice_client
+    voice_client.resume()
 
 @client.command()
 async def queue(ctx):
