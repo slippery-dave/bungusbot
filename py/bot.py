@@ -38,6 +38,10 @@ VOLUME_REDUCER = 0.25
 EAR_PROTECT = False
 EAR_KEYWORDS = ['ear', 'rape', 'earrape', 'earape', 'earr', 'rrape']
 
+# For keeping track of which channel to puppet to
+PUPPET_CHANNEL = 0
+PUPPET_CHANNEL_NAME = ''
+
 # When bot is up and connected to server(guild)
 @client.event
 async def on_ready():
@@ -283,5 +287,61 @@ async def say(ctx, *, words):
     channel = ctx.channel
     print(str(channel))
     await ctx.send(words, tts=True)
+
+@client.command(hidden=True)
+async def set_puppet_channel(ctx):
+    global PUPPET_CHANNEL
+    global PUPPET_CHANNEL_NAME
+
+    server_msg = ''
+    for i, server in enumerate(client.guilds):
+        server_msg += f'{i}\t{server}\n'
+
+    await ctx.send(server_msg)
+
+    def guild_check(msg):
+        return (msg.author == ctx.author 
+            and msg.channel == ctx.channel 
+            and int(msg.content) >= 0
+            and int(msg.content) < len(client.guilds))
+
+    response = await client.wait_for("message", check=guild_check)
+
+    p_guild = client.guilds[int(response.content)]
+    channel_msg = ''
+    for i, channel in enumerate(p_guild.text_channels):
+        channel_msg += f'{i}\t{channel.name}'
+
+    await ctx.send(channel_msg)
+
+    def channel_check(msg):
+        return (msg.author == ctx.author 
+            and msg.channel == ctx.channel 
+            and int(msg.content) >= 0
+            and int(msg.content) < len(p_guild.text_channels))
+
+    response = await client.wait_for("message", check=channel_check)
+    p_channel = p_guild.text_channels[int(response.content)]
+
+    PUPPET_CHANNEL_NAME = f'{p_guild.name}-->{p_channel.name}'
+    PUPPET_CHANNEL = p_channel.id
+    await ctx.send(f'Puppet channel set to "{PUPPET_CHANNEL_NAME}"({PUPPET_CHANNEL})')
+
+@client.command(hidden=True)
+async def puppet_channel(ctx):
+    #await ctx.send(f'Puppet channel currently assigned to "{PUPPET_CHANNEL_NAME}"({PUPPET_CHANNEL})')
+    print(type(ctx.author.id))
+    
+
+@client.command(hidden=True)
+async def puppet(ctx, *, words):
+    # If it's me 
+    if ctx.author.id == 623681814812164096:
+
+        channel = client.get_channel(PUPPET_CHANNEL)
+        await channel.send(words)
+    else:
+        print(f'Wrong user - {ctx.message.author.id}')
+
 
 client.run(TOKEN)
