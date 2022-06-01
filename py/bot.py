@@ -310,7 +310,7 @@ async def set_puppet_channel(ctx):
     p_guild = client.guilds[int(response.content)]
     channel_msg = ''
     for i, channel in enumerate(p_guild.text_channels):
-        channel_msg += f'{i}\t{channel.name}'
+        channel_msg += f'{i}\t{channel.name}\n'
 
     await ctx.send(channel_msg)
 
