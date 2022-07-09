@@ -333,7 +333,7 @@ async def puppet_channel(ctx):
     print(type(ctx.author.id))
     
 
-@client.command(hidden=True)
+@client.command(hidden=True, aliases=['p'])
 async def puppet(ctx, *, words):
     # If it's me 
     if ctx.author.id == 623681814812164096:
@@ -343,5 +343,14 @@ async def puppet(ctx, *, words):
     else:
         print(f'Wrong user - {ctx.message.author.id}')
 
+@client.command(hidden=True, aliases=['ps'])
+async def puppet_say(ctx, *, words):
+    # If it's me
+    if ctx.author.id == 623681814812164096:
+
+        channel = client.get_channel(PUPPET_CHANNEL)
+        await channel.send(words, tts=True)
+    else:
+        print(f'Wrong user - {ctx.message.author.id}')
 
 client.run(TOKEN)
