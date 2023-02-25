@@ -6,7 +6,7 @@ Just install requirements
 pip install requirements.txt
 ```
 
-Then set up a .env file
+Then update the .env file with the bots token (discord developer portal)
 
 Also need to install ffmpeg. To see their official page, check [here](https://ffmpeg.org/).
 
