@@ -3,20 +3,25 @@ import re
 import asyncio
 import time
 import datetime
+import json
 
 import discord
 from discord.ext import commands
 from discord import FFmpegPCMAudio
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 from youtube_dl import YoutubeDL
 from youtube_dl.utils import DownloadError
 import requests
 
-load_dotenv()
-TOKEN = os.getenv('DISCORD_TOKEN')
-SERVER = os.getenv('DISCORD_GUILD')
+# load_dotenv()
+with open('env.json') as infile:
+    env_json = json.load(infile)
 
-client = commands.Bot(command_prefix='!')
+TOKEN = env_json['discord_token']
+SERVER = env_json['discord_guild']
+
+# TOKEN = os.getenv('DISCORD_TOKEN')
+# SERVER = os.getenv('DISCORD_GUILD')
 
 # music queue. just using a list so people can move songs if they want
 song_queue = []
@@ -42,37 +47,28 @@ EAR_KEYWORDS = ['ear', 'rape', 'earrape', 'earape', 'earr', 'rrape']
 PUPPET_CHANNEL = 0
 PUPPET_CHANNEL_NAME = ''
 
-@client.event
-# When bot is up and connected to server(guild)
-async def on_ready():
-    for guild in client.guilds:
-        if guild.name == SERVER:
-            break
-    print(
-        f'{client.user} up in this bisshhh.\n'
-        f'\tserver: "{guild.name}" (id: {guild.id})'
-    )
+class Music(commands.Cog):
 
-class Music(commands.Cog)
-
-    def __init__(self, bot):
+    def __init__(self, bot, song_queue):
         self.bot=bot
 
 
     @commands.command()
-    async def join(ctx):
-        if not ctx.message.author.voice:
-            await ctx.send('Join a voice channel first, idiot')
-            return False
-        channel = ctx.message.author.voice.channel
-        await channel.connect()
-        return True
+    async def join(self, ctx):
+        print('joining')
+        destination = ctx.author.voice.channel
+        # if ctx.voice_client is not None:
+        #     await ctx.send('Join a voice channel first, idiot')
+        #     return False
 
         if ctx.voice_client is not None:
-            return await ctx.voice_client.move_to(channel)
+            return await ctx.voice_client.move_to(destination)
+        
+        # channel = ctx.message.author.voice.channel
+        await destination.connect()
 
     @commands.command()
-    async def leave(ctx):
+    async def leave(self, ctx):
         voice_client = ctx.message.guild.voice_client
         if not voice_client:
             return
@@ -80,7 +76,7 @@ class Music(commands.Cog)
 
     @commands.command()
     # ctx, *, search just returns all following args as a single str
-    async def play(ctx, *, search):
+    async def play(self, ctx, *, search):
         global CUR_SONG_DUR
         global TIME_STARTED
         global CUR_SONG_STR
@@ -178,13 +174,13 @@ class Music(commands.Cog)
             # Stream (no download)
             #await ctx.send(f'Playing [{video_title}](https://www.youtube.com/watch?v={video_link})')
             await ctx.send(f'**Playing** `{video_title}` now!')
-            voice_client.play(FFmpegPCMAudio(URL, **FFMPEG_OPTIONS), after=lambda e: play_next(ctx))
+            voice_client.play(FFmpegPCMAudio(URL, **FFMPEG_OPTIONS), after=lambda e: self.play_next(ctx))
             voice_client.source = discord.PCMVolumeTransformer(voice_client.source, volume=VOLUME_REDUCER)
             CUR_SONG_DUR = song_duration
             TIME_STARTED = time.time()
             CUR_SONG_STR = f"[{video_title}](https://www.youtube.com/watch?v={video_link}) | `{song_duration_str} Requested by: {ctx.author.display_name}`"
 
-    def play_next(ctx):
+    def play_next(self, ctx):
         global CUR_SONG_DUR
         global TIME_STARTED
         global CUR_SONG_STR
@@ -196,24 +192,24 @@ class Music(commands.Cog)
             CUR_SONG_DUR = dur
             TIME_STARTED = time.time()
             CUR_SONG_STR = f"[{song['title']}]({song['URL']}) | {song['duration_str']} Requested by: {song['requestor']}"
-            voice_client.play(FFmpegPCMAudio(URL, **FFMPEG_OPTIONS), after=lambda e: play_next(ctx))
+            voice_client.play(FFmpegPCMAudio(URL, **FFMPEG_OPTIONS), after=lambda e: self.play_next(ctx))
             voice_client.source = discord.PCMVolumeTransformer(voice_client.source, volume=VOLUME_REDUCER)
 
-    def ear_sanitize(search):
-        new_search = ""
-        for kw in EAR_KEYWORDS:
-            new_search = return_str.replace(kw, '')
-        return new_search
+    # def ear_sanitize(search):
+    #     new_search = ""
+    #     for kw in EAR_KEYWORDS:
+    #         new_search = return_str.replace(kw, '')
+    #     return new_search
 
     @commands.command(aliases=['fs'])
-    async def skip(ctx):
+    async def skip(self, ctx):
         voice_client = ctx.message.guild.voice_client
         if not voice_client:
             return
         voice_client.stop()
 
     @commands.command()
-    async def move(ctx, src, dst):
+    async def move(self, ctx, src, dst):
         voice_client = ctx.message.guild.voice_client
         if not voice_client:
             return
@@ -225,7 +221,7 @@ class Music(commands.Cog)
         await ctx.send(f":white_check_mark: **Moved** `{song_queue[dst-1]['title']}` **to position {dst}**")
 
     @commands.command()
-    async def remove(ctx, target):
+    async def remove(self, ctx, target):
         voice_client = ctx.message.guild.voice_client
         if not voice_client:
             return
@@ -234,19 +230,19 @@ class Music(commands.Cog)
             await ctx.send(f"You're bad at math, try again")
         song_queue.pop(target-1)
 
-    @commands.command()
-    async def pause(ctx):
-        voice_client = ctx.message.guild.voice_client
-        voice_client.pause()
+    # @commands.command()
+    # async def pause(ctx):
+    #     voice_client = ctx.message.guild.voice_client
+    #     voice_client.pause()
 
 
-    @commands.command()
-    async def resume(ctx):
-        voice_client = ctx.message.guild.voice_client
-        voice_client.resume()
+    # @commands.command()
+    # async def resume(ctx):
+    #     voice_client = ctx.message.guild.voice_client
+    #     voice_client.resume()
 
     @commands.command()
-    async def queue(ctx):
+    async def queue(self, ctx):
         guild = ctx.message.guild
         voice_client = guild.voice_client
         if not voice_client:
@@ -292,74 +288,100 @@ class Music(commands.Cog)
 
 
     @commands.command()
-    async def say(ctx, *, words):
+    async def say(self, ctx, *, words):
         channel = ctx.channel
         print(str(channel))
         await ctx.send(words, tts=True)
 
-    @commands.command(hidden=True)
-    async def set_puppet_channel(ctx):
-        global PUPPET_CHANNEL
-        global PUPPET_CHANNEL_NAME
+    # @commands.command(hidden=True)
+    # async def set_puppet_channel(ctx):
+    #     global PUPPET_CHANNEL
+    #     global PUPPET_CHANNEL_NAME
 
-        server_msg = ''
-        for i, server in enumerate(self.bot.guilds):
-            server_msg += f'{i}\t{server}\n'
+    #     server_msg = ''
+    #     for i, server in enumerate(self.bot.guilds):
+    #         server_msg += f'{i}\t{server}\n'
 
-        await ctx.send(server_msg)
+    #     await ctx.send(server_msg)
 
-        def guild_check(msg):
-            return (msg.author == ctx.author 
-                and msg.channel == ctx.channel 
-                and int(msg.content) >= 0
-                and int(msg.content) < len(client.guilds))
+    #     def guild_check(msg):
+    #         return (msg.author == ctx.author 
+    #             and msg.channel == ctx.channel 
+    #             and int(msg.content) >= 0
+    #             and int(msg.content) < len(client.guilds))
 
-        response = await self.bot.wait_for("message", check=guild_check)
+    #     response = await self.bot.wait_for("message", check=guild_check)
 
-        p_guild = self.bot.guilds[int(response.content)]
-        channel_msg = ''
-        for i, channel in enumerate(p_guild.text_channels):
-            channel_msg += f'{i}\t{channel.name}\n'
+    #     p_guild = self.bot.guilds[int(response.content)]
+    #     channel_msg = ''
+    #     for i, channel in enumerate(p_guild.text_channels):
+    #         channel_msg += f'{i}\t{channel.name}\n'
 
-        await ctx.send(channel_msg)
+    #     await ctx.send(channel_msg)
 
-        def channel_check(msg):
-            return (msg.author == ctx.author 
-                and msg.channel == ctx.channel 
-                and int(msg.content) >= 0
-                and int(msg.content) < len(p_guild.text_channels))
+    #     def channel_check(msg):
+    #         return (msg.author == ctx.author 
+    #             and msg.channel == ctx.channel 
+    #             and int(msg.content) >= 0
+    #             and int(msg.content) < len(p_guild.text_channels))
 
-        response = await self.bot.wait_for("message", check=channel_check)
-        p_channel = p_guild.text_channels[int(response.content)]
+    #     response = await self.bot.wait_for("message", check=channel_check)
+    #     p_channel = p_guild.text_channels[int(response.content)]
 
-        PUPPET_CHANNEL_NAME = f'{p_guild.name}-->{p_channel.name}'
-        PUPPET_CHANNEL = p_channel.id
-        await ctx.send(f'Puppet channel set to "{PUPPET_CHANNEL_NAME}"({PUPPET_CHANNEL})')
+    #     PUPPET_CHANNEL_NAME = f'{p_guild.name}-->{p_channel.name}'
+    #     PUPPET_CHANNEL = p_channel.id
+    #     await ctx.send(f'Puppet channel set to "{PUPPET_CHANNEL_NAME}"({PUPPET_CHANNEL})')
 
-    @commands.command(hidden=True)
-    async def puppet_channel(ctx):
-        #await ctx.send(f'Puppet channel currently assigned to "{PUPPET_CHANNEL_NAME}"({PUPPET_CHANNEL})')
-        print(type(ctx.author.id))
+    # @commands.command(hidden=True)
+    # async def puppet_channel(ctx):
+    #     #await ctx.send(f'Puppet channel currently assigned to "{PUPPET_CHANNEL_NAME}"({PUPPET_CHANNEL})')
+    #     print(type(ctx.author.id))
         
 
-    @commands.command(hidden=True, aliases=['p'])
-    async def puppet(ctx, *, words):
-        # If it's me 
-        if ctx.author.id == 623681814812164096:
+    # @commands.command(hidden=True, aliases=['p'])
+    # async def puppet(ctx, *, words):
+    #     # If it's me 
+    #     if ctx.author.id == 623681814812164096:
 
-            channel = self.bot.get_channel(PUPPET_CHANNEL)
-            await channel.send(words)
-        else:
-            print(f'Wrong user - {ctx.message.author.id}')
+    #         channel = self.bot.get_channel(PUPPET_CHANNEL)
+    #         await channel.send(words)
+    #     else:
+    #         print(f'Wrong user - {ctx.message.author.id}')
 
-    @commands.command(hidden=True, aliases=['ps'])
-    async def puppet_say(ctx, *, words):
-        # If it's me
-        if ctx.author.id == 623681814812164096:
+    # @commands.command(hidden=True, aliases=['ps'])
+    # async def puppet_say(ctx, *, words):
+    #     # If it's me
+    #     if ctx.author.id == 623681814812164096:
 
-            channel = self.bot.get_channel(PUPPET_CHANNEL)
-            await channel.send(words, tts=True)
-        else:
-            print(f'Wrong user - {ctx.message.author.id}')
+    #         channel = self.bot.get_channel(PUPPET_CHANNEL)
+    #         await channel.send(words, tts=True)
+    #     else:
+    #         print(f'Wrong user - {ctx.message.author.id}')
 
-client.run(TOKEN)
+intents = discord.Intents.default()
+intents.message_content = True
+
+client = commands.Bot(
+    command_prefix=commands.when_mentioned_or('!'),
+    description='BIG BUNGUS BOY',
+    intents=intents
+    )
+
+@client.event
+# When bot is up and connected to server(guild)
+async def on_ready():
+    for guild in client.guilds:
+        if guild.name == SERVER:
+            break
+    print(
+        f'{client.user} up in this bisshhh.\n'
+        f'\tserver: "{guild.name}" (id: {guild.id})'
+    )
+
+async def main():
+    async with client:
+        await client.add_cog(Music(client))
+        await client.start(TOKEN)
+
+# client.run(TOKEN)
+asyncio.run(main())
