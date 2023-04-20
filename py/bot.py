@@ -49,7 +49,7 @@ PUPPET_CHANNEL_NAME = ''
 
 class Music(commands.Cog):
 
-    def __init__(self, bot, song_queue):
+    def __init__(self, bot):
         self.bot=bot
 
 
