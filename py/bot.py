@@ -23,14 +23,6 @@ SERVER = env_json['discord_guild']
 # TOKEN = os.getenv('DISCORD_TOKEN')
 # SERVER = os.getenv('DISCORD_GUILD')
 
-# music queue. just using a list so people can move songs if they want
-song_queue = []
-
-# keep track of time left in song
-TIME_STARTED = 0
-CUR_SONG_DUR = 0
-CUR_SONG_STR = ""
-
 # streaming stuff
 YDL_OPTIONS = {'format': 'bestaudio', 'noplaylist':'True', 'cookiefile':'./youtube.com_cookies.txt'}
 FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_on_network_error 1 -reconnect_on_http_error 404,403 -reconnect_delay_max 5', 'options': '-vn'}
@@ -48,6 +40,15 @@ PUPPET_CHANNEL = 0
 PUPPET_CHANNEL_NAME = ''
 
 class Music(commands.Cog):
+
+    # TODO: these might need to be in ctor. Here, all instances of class share
+    # music queue. just using a list so people can move songs if they want
+    song_queue = []
+
+    # keep track of time left in song
+    TIME_STARTED = 0
+    CUR_SONG_DUR = 0
+    CUR_SONG_STR = ""
 
     def __init__(self, bot):
         self.bot=bot
@@ -77,9 +78,6 @@ class Music(commands.Cog):
     @commands.command()
     # ctx, *, search just returns all following args as a single str
     async def play(self, ctx, *, search):
-        global CUR_SONG_DUR
-        global TIME_STARTED
-        global CUR_SONG_STR
         voice_client = ctx.message.guild.voice_client
         if not voice_client:
             joined = await join(ctx)
@@ -135,14 +133,14 @@ class Music(commands.Cog):
                 "title": video_title,
                 "requestor": f"{ctx.author.display_name}",
             }
-            song_queue.append(song_dict)
+            self.song_queue.append(song_dict)
             embed = discord.Embed(
                 title=video_title,
                 url=f"https://www.youtube.com/watch?v={video_link}",
                 )
             embed.set_author(
                 name=f"{ctx.author.display_name} added to the queue",
-                icon_url=ctx.author.avatar_url
+                icon_url=ctx.author.avatar
                 )
             embed.set_thumbnail(url=thumbnail_url)
             embed.add_field(
@@ -150,8 +148,8 @@ class Music(commands.Cog):
                 value=song_duration_str,
                 inline=True
                 )
-            time_left = CUR_SONG_DUR - int(time.time() - TIME_STARTED)
-            time_until_play = sum(song["duration"] for song in song_queue) + time_left
+            time_left = self.CUR_SONG_DUR - int(time.time() - self.TIME_STARTED)
+            time_until_play = sum(song["duration"] for song in self.song_queue) + time_left
             minutes, seconds = divmod(time_until_play, 60)
             hours, minutes = divmod(minutes, 60)
             if hours != 0:
@@ -166,7 +164,7 @@ class Music(commands.Cog):
                 )
             embed.add_field(
                 name="Place in queue",
-                value=len(song_queue),
+                value=len(self.song_queue),
                 inline=False
                 )
             await ctx.send(embed=embed)
@@ -176,22 +174,19 @@ class Music(commands.Cog):
             await ctx.send(f'**Playing** `{video_title}` now!')
             voice_client.play(FFmpegPCMAudio(URL, **FFMPEG_OPTIONS), after=lambda e: self.play_next(ctx))
             voice_client.source = discord.PCMVolumeTransformer(voice_client.source, volume=VOLUME_REDUCER)
-            CUR_SONG_DUR = song_duration
-            TIME_STARTED = time.time()
-            CUR_SONG_STR = f"[{video_title}](https://www.youtube.com/watch?v={video_link}) | `{song_duration_str} Requested by: {ctx.author.display_name}`"
+            self.CUR_SONG_DUR = song_duration
+            self.TIME_STARTED = time.time()
+            self.CUR_SONG_STR = f"[{video_title}](https://www.youtube.com/watch?v={video_link}) | `{song_duration_str} Requested by: {ctx.author.display_name}`"
 
     def play_next(self, ctx):
-        global CUR_SONG_DUR
-        global TIME_STARTED
-        global CUR_SONG_STR
-        if len(song_queue) >= 1:
-            song = song_queue.pop(0)
+        if len(self.song_queue) >= 1:
+            song = self.song_queue.pop(0)
             URL = song["URL"]
             dur = song["duration"]
             voice_client = ctx.message.guild.voice_client
-            CUR_SONG_DUR = dur
-            TIME_STARTED = time.time()
-            CUR_SONG_STR = f"[{song['title']}]({song['URL']}) | {song['duration_str']} Requested by: {song['requestor']}"
+            self.CUR_SONG_DUR = dur
+            self.TIME_STARTED = time.time()
+            self.CUR_SONG_STR = f"[{song['title']}]({song['URL']}) | {song['duration_str']} Requested by: {song['requestor']}"
             voice_client.play(FFmpegPCMAudio(URL, **FFMPEG_OPTIONS), after=lambda e: self.play_next(ctx))
             voice_client.source = discord.PCMVolumeTransformer(voice_client.source, volume=VOLUME_REDUCER)
 
@@ -215,10 +210,10 @@ class Music(commands.Cog):
             return
         src = int(src)
         dst = int(dst)
-        if src < 1 or src > len(song_queue) or dst < 1 or dst > len(song_queue) or src == dst:
+        if src < 1 or src > len(self.song_queue) or dst < 1 or dst > len(self.song_queue) or src == dst:
             await ctx.send(f"You suck at math, check your numbers")
-        song_queue.insert(dst-1, song_queue.pop(src-1))
-        await ctx.send(f":white_check_mark: **Moved** `{song_queue[dst-1]['title']}` **to position {dst}**")
+        self.song_queue.insert(dst-1, self.song_queue.pop(src-1))
+        await ctx.send(f":white_check_mark: **Moved** `{self.song_queue[dst-1]['title']}` **to position {dst}**")
 
     @commands.command()
     async def remove(self, ctx, target):
@@ -226,9 +221,9 @@ class Music(commands.Cog):
         if not voice_client:
             return
         target = int(target)
-        if target <= 0 or target > len(song_queue):
+        if target <= 0 or target > len(self.song_queue):
             await ctx.send(f"You're bad at math, try again")
-        song_queue.pop(target-1)
+        self.song_queue.pop(target-1)
 
     # @commands.command()
     # async def pause(ctx):
@@ -250,29 +245,29 @@ class Music(commands.Cog):
             return
 
         embed = discord.Embed(
-            name="\u200b",
+            # name="\u200b",
             title=f"Queue for {guild}"
         )
         embed.add_field(
             name="__Now Playing:__",
-            value=CUR_SONG_STR,
+            value=self.CUR_SONG_STR,
             inline=False
         )
 
-        if not song_queue:
+        if not self.song_queue:
             await ctx.send(f"The queue is barren.")
             return
 
         # Next playing doesn't include current, start at 1
-        for i, song in enumerate(song_queue, 1):
+        for i, song in enumerate(self.song_queue, 1):
             embed.add_field(
                 name="__Up Next:__" if i == 1 else "\u200b",
                 value=f"`{i}) `[{song['title']}]({song['URL']}) | `{song['duration_str']} Requested by: {song['requestor']}`",
                 inline=False
             )
         # TODO: clean this up, this is messy
-        total_time = CUR_SONG_DUR - int(time.time() - TIME_STARTED)
-        total_time += sum(song["duration"] for song in song_queue)
+        total_time = self.CUR_SONG_DUR - int(time.time() - self.TIME_STARTED)
+        total_time += sum(song["duration"] for song in self.song_queue)
         minutes, seconds = divmod(total_time, 60)
         hours, minutes = divmod(minutes, 60)
         if hours != 0:
@@ -282,7 +277,7 @@ class Music(commands.Cog):
             total_time = f"{minutes}:{seconds:02d}"
         embed.add_field(
             name="\u200b",
-            value=f"**{len(song_queue)} songs in queue | {total_time} total length**"
+            value=f"**{len(self.song_queue)} songs in queue | {total_time} total length**"
             )
         await ctx.send(embed=embed)
 
