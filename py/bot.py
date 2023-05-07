@@ -9,8 +9,9 @@ import discord
 from discord.ext import commands
 from discord import FFmpegPCMAudio
 # from dotenv import load_dotenv
-from youtube_dl import YoutubeDL
-from youtube_dl.utils import DownloadError
+# from youtube_dl import YoutubeDL
+# from youtube_dl.utils import DownloadError
+import yt_dlp
 import requests
 
 # load_dotenv()
@@ -24,7 +25,7 @@ SERVER = env_json['discord_guild']
 # SERVER = os.getenv('DISCORD_GUILD')
 
 # streaming stuff
-YDL_OPTIONS = {'format': 'bestaudio', 'noplaylist':'True', 'cookiefile':'./youtube.com_cookies.txt'}
+YDL_OPTIONS = {'format': 'bestaudio', 'noplaylist':'True', 'cookiefile':'./new-cookies-2.txt'}
 FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_on_network_error 1 -reconnect_on_http_error 404,403 -reconnect_delay_max 5', 'options': '-vn'}
 
 # Since everyone always complains that the volume is too high when joining,
@@ -52,6 +53,10 @@ class Music(commands.Cog):
 
     def __init__(self, bot):
         self.bot=bot
+
+    @commands.Cog.listener()
+    async def on_command_error(self, ctx, err):
+        print(err)
 
 
     @commands.command()
@@ -109,10 +114,11 @@ class Music(commands.Cog):
         # voice_client.play(FFmpegPCMAudio('song.mp3'))
         # voice_client.is_playing()
 
-        with YoutubeDL(YDL_OPTIONS) as ydl:
+        # with YoutubeDL(YDL_OPTIONS) as ydl:
+        with yt_dlp.YoutubeDL(YDL_OPTIONS) as ydl:
             try:
                 info = ydl.extract_info(video_link, download=False)
-            except DownloadError as e:
+            except yt_dlp.DownloadError as e:
                 if "confirm your age" in str(e):
                     await ctx.send("UwU This song is too nyaughty fow me t-to h-handwe. Sowwy!!")
                 else:
@@ -123,11 +129,13 @@ class Music(commands.Cog):
         song_duration_str = f"{song_duration // 60}:{song_duration % 60:02d}"
         thumbnail_url = info['thumbnails'][0]['url']
 
-        URL = info['formats'][0]['url']
+        # URL = info['formats'][0]['url']
+        URL = info['url']
         video_title = info['title']
         if voice_client.is_playing():
             song_dict = {
                 "URL": URL,
+                "short_url": f"https://www.youtube.com/watch?v={video_link}",
                 "duration_str": song_duration_str,
                 "duration": song_duration,
                 "title": video_title,
@@ -136,7 +144,7 @@ class Music(commands.Cog):
             self.song_queue.append(song_dict)
             embed = discord.Embed(
                 title=video_title,
-                url=f"https://www.youtube.com/watch?v={video_link}",
+                url=song_dict['short_url'],
                 )
             embed.set_author(
                 name=f"{ctx.author.display_name} added to the queue",
@@ -262,7 +270,7 @@ class Music(commands.Cog):
         for i, song in enumerate(self.song_queue, 1):
             embed.add_field(
                 name="__Up Next:__" if i == 1 else "\u200b",
-                value=f"`{i}) `[{song['title']}]({song['URL']}) | `{song['duration_str']} Requested by: {song['requestor']}`",
+                value=f"`{i}) `[{song['title']}]({song['short_url']}) | `{song['duration_str']} Requested by: {song['requestor']}`",
                 inline=False
             )
         # TODO: clean this up, this is messy
@@ -279,7 +287,7 @@ class Music(commands.Cog):
             name="\u200b",
             value=f"**{len(self.song_queue)} songs in queue | {total_time} total length**"
             )
-        await ctx.send(embed=embed)
+        await ctx.channel.send(embed=embed)
 
 
     @commands.command()
