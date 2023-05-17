@@ -1,4 +1,4 @@
 discord
-youtube_dl
+yt-dlp>=2023.3.4
 pynacl
 requests
