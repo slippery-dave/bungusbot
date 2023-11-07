@@ -55,6 +55,12 @@ class Music(commands.Cog):
         self.bot=bot
 
     @commands.Cog.listener()
+    async def on_ready(self):
+        print('Bungus online...')
+        print('Logged in as ', self.bot.user)
+        print('ID:', self.bot.user.id)
+
+    @commands.Cog.listener()
     async def on_command_error(self, ctx, err):
         print(err)
 
@@ -268,9 +274,12 @@ class Music(commands.Cog):
 
         # Next playing doesn't include current, start at 1
         for i, song in enumerate(self.song_queue, 1):
+            next_song_str = f"`{i})` [{song['title']}]({song['short_url']}) | `{song['duration_str']} Requested by: {song['requestor']}`"
+            if len(next_song_str) >= 1024:
+                next_song_str = next_song[:1023]
             embed.add_field(
                 name="__Up Next:__" if i == 1 else "\u200b",
-                value=f"`{i}) `[{song['title']}]({song['short_url']}) | `{song['duration_str']} Requested by: {song['requestor']}`",
+                value=next_song_str,
                 inline=False
             )
         # TODO: clean this up, this is messy
@@ -295,71 +304,7 @@ class Music(commands.Cog):
         channel = ctx.channel
         print(str(channel))
         await ctx.send(words, tts=True)
-
-    # @commands.command(hidden=True)
-    # async def set_puppet_channel(ctx):
-    #     global PUPPET_CHANNEL
-    #     global PUPPET_CHANNEL_NAME
-
-    #     server_msg = ''
-    #     for i, server in enumerate(self.bot.guilds):
-    #         server_msg += f'{i}\t{server}\n'
-
-    #     await ctx.send(server_msg)
-
-    #     def guild_check(msg):
-    #         return (msg.author == ctx.author 
-    #             and msg.channel == ctx.channel 
-    #             and int(msg.content) >= 0
-    #             and int(msg.content) < len(client.guilds))
-
-    #     response = await self.bot.wait_for("message", check=guild_check)
-
-    #     p_guild = self.bot.guilds[int(response.content)]
-    #     channel_msg = ''
-    #     for i, channel in enumerate(p_guild.text_channels):
-    #         channel_msg += f'{i}\t{channel.name}\n'
-
-    #     await ctx.send(channel_msg)
-
-    #     def channel_check(msg):
-    #         return (msg.author == ctx.author 
-    #             and msg.channel == ctx.channel 
-    #             and int(msg.content) >= 0
-    #             and int(msg.content) < len(p_guild.text_channels))
-
-    #     response = await self.bot.wait_for("message", check=channel_check)
-    #     p_channel = p_guild.text_channels[int(response.content)]
-
-    #     PUPPET_CHANNEL_NAME = f'{p_guild.name}-->{p_channel.name}'
-    #     PUPPET_CHANNEL = p_channel.id
-    #     await ctx.send(f'Puppet channel set to "{PUPPET_CHANNEL_NAME}"({PUPPET_CHANNEL})')
-
-    # @commands.command(hidden=True)
-    # async def puppet_channel(ctx):
-    #     #await ctx.send(f'Puppet channel currently assigned to "{PUPPET_CHANNEL_NAME}"({PUPPET_CHANNEL})')
-    #     print(type(ctx.author.id))
-        
-
-    # @commands.command(hidden=True, aliases=['p'])
-    # async def puppet(ctx, *, words):
-    #     # If it's me 
-    #     if ctx.author.id == 623681814812164096:
-
-    #         channel = self.bot.get_channel(PUPPET_CHANNEL)
-    #         await channel.send(words)
-    #     else:
-    #         print(f'Wrong user - {ctx.message.author.id}')
-
-    # @commands.command(hidden=True, aliases=['ps'])
-    # async def puppet_say(ctx, *, words):
-    #     # If it's me
-    #     if ctx.author.id == 623681814812164096:
-
-    #         channel = self.bot.get_channel(PUPPET_CHANNEL)
-    #         await channel.send(words, tts=True)
-    #     else:
-    #         print(f'Wrong user - {ctx.message.author.id}')
+   
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -370,21 +315,9 @@ client = commands.Bot(
     intents=intents
     )
 
-@client.event
-# When bot is up and connected to server(guild)
-async def on_ready():
-    for guild in client.guilds:
-        if guild.name == SERVER:
-            break
-    print(
-        f'{client.user} up in this bisshhh.\n'
-        f'\tserver: "{guild.name}" (id: {guild.id})'
-    )
-
 async def main():
     async with client:
         await client.add_cog(Music(client))
         await client.start(TOKEN)
 
-# client.run(TOKEN)
 asyncio.run(main())
